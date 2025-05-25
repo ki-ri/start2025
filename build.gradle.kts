@@ -21,6 +21,10 @@ repositories {
     mavenCentral()
 }
 
+sourceSets.main {
+    java.srcDirs("${project.rootDir}/src/main/jooq")
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-mustache")
     implementation("org.springframework.boot:spring-boot-starter-web")
