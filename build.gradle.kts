@@ -69,7 +69,8 @@ jooq {
             }
 
             target {
-                packageName = "com.example.demo.infra.jooq"
+                packageName = "com.miwa.potato.generated.jooq"
+                directory = "${project.rootDir}/src/main/jooq"
             }
         }
     }
