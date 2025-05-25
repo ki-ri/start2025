@@ -5,6 +5,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("plugin.jpa") version "1.9.25"
     kotlin("plugin.allopen") version "1.9.25"
+    id("org.jooq.jooq-codegen-gradle") version "3.19.11"
 }
 
 group = "com.miwa"
@@ -29,6 +30,17 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // Jooq dependencies
+    implementation("org.springframework.boot:spring-boot-starter-jooq")
+    implementation("org.jooq:jooq:3.19.11")
+    implementation("org.jooq:jooq-meta:3.19.11")
+    implementation("org.jooq:jooq-codegen:3.19.11")
+    implementation("org.jooq:jooq-postgres-extensions:3.19.11")
+    jooqCodegen("org.postgresql:postgresql:42.7.4")
+
+    // Database dependencies
+    runtimeOnly("org.postgresql:postgresql")
 }
 
 kotlin {
@@ -39,4 +51,26 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+jooq {
+    configuration {
+        jdbc {
+            driver = "org.postgresql.Driver"
+            url = "jdbc:postgresql://localhost:5439/demo"
+            user = "postgres"
+            password = "password"
+        }
+        generator {
+            database {
+                name = "org.jooq.meta.postgres.PostgresDatabase"
+                inputSchema = "public"
+                includes = ".*"
+            }
+
+            target {
+                packageName = "com.example.demo.infra.jooq"
+            }
+        }
+    }
 }
