@@ -11,6 +11,7 @@ class HtmlController {
     @GetMapping("/")
     fun blog(model: Model): String {
         model["title"] = "Potato Blog"
+        model["user"] = User("1", "Miwa").name
         return "blog"
     }
 }
