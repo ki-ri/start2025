@@ -61,7 +61,7 @@ jooq {
     configuration {
         jdbc {
             driver = "org.postgresql.Driver"
-            url = "jdbc:postgresql://localhost:5439/demo"
+            url = "jdbc:postgresql://localhost:55432/demo"
             user = "postgres"
             password = "password"
         }
