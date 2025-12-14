@@ -4,6 +4,7 @@
 package com.miwa.potato.generated.jooq;
 
 
+import com.miwa.potato.generated.jooq.tables.SchemaMigrations;
 import com.miwa.potato.generated.jooq.tables.Users;
 
 import java.util.Arrays;
@@ -28,6 +29,11 @@ public class Public extends SchemaImpl {
     public static final Public PUBLIC = new Public();
 
     /**
+     * The table <code>public.schema_migrations</code>.
+     */
+    public final SchemaMigrations SCHEMA_MIGRATIONS = SchemaMigrations.SCHEMA_MIGRATIONS;
+
+    /**
      * The table <code>public.users</code>.
      */
     public final Users USERS = Users.USERS;
@@ -48,6 +54,7 @@ public class Public extends SchemaImpl {
     @Override
     public final List<Table<?>> getTables() {
         return Arrays.asList(
+            SchemaMigrations.SCHEMA_MIGRATIONS,
             Users.USERS
         );
     }

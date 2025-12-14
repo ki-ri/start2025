@@ -4,6 +4,7 @@
 package com.miwa.potato.generated.jooq;
 
 
+import com.miwa.potato.generated.jooq.tables.SchemaMigrations;
 import com.miwa.potato.generated.jooq.tables.Users;
 
 
@@ -12,6 +13,11 @@ import com.miwa.potato.generated.jooq.tables.Users;
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes", "this-escape" })
 public class Tables {
+
+    /**
+     * The table <code>public.schema_migrations</code>.
+     */
+    public static final SchemaMigrations SCHEMA_MIGRATIONS = SchemaMigrations.SCHEMA_MIGRATIONS;
 
     /**
      * The table <code>public.users</code>.

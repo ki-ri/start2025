@@ -4,7 +4,9 @@
 package com.miwa.potato.generated.jooq;
 
 
+import com.miwa.potato.generated.jooq.tables.SchemaMigrations;
 import com.miwa.potato.generated.jooq.tables.Users;
+import com.miwa.potato.generated.jooq.tables.records.SchemaMigrationsRecord;
 import com.miwa.potato.generated.jooq.tables.records.UsersRecord;
 
 import org.jooq.TableField;
@@ -24,5 +26,6 @@ public class Keys {
     // UNIQUE and PRIMARY KEY definitions
     // -------------------------------------------------------------------------
 
+    public static final UniqueKey<SchemaMigrationsRecord> SCHEMA_MIGRATIONS_PKEY = Internal.createUniqueKey(SchemaMigrations.SCHEMA_MIGRATIONS, DSL.name("schema_migrations_pkey"), new TableField[] { SchemaMigrations.SCHEMA_MIGRATIONS.VERSION }, true);
     public static final UniqueKey<UsersRecord> USERS_PKEY = Internal.createUniqueKey(Users.USERS, DSL.name("users_pkey"), new TableField[] { Users.USERS.ID }, true);
 }

@@ -1,5 +1,6 @@
 package com.miwa.potato
 
+import com.miwa.potato.domain.model.User
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.ui.set
