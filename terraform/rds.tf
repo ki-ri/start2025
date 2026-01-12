@@ -23,7 +23,7 @@ resource "random_password" "db_password" {
 resource "aws_db_instance" "main" {
   identifier     = "${var.repository_name}-db"
   engine         = "postgres"
-  engine_version = "16.4"
+  engine_version = "16.11"
   instance_class = var.db_instance_class
 
   db_name  = var.db_name
