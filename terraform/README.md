@@ -1,13 +1,80 @@
-# Terraform で ECR リポジトリを管理
+# Terraform でAWS Fargateインフラストラクチャを管理
 
-このディレクトリには、AWS ECR（Elastic Container Registry）リポジトリをTerraformで管理するための設定が含まれています。
+このディレクトリには、Spring BootアプリケーションをAWS Fargateにデプロイするための完全なインフラストラクチャをTerraformで管理する設定が含まれています。
+
+## インフラストラクチャ構成
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Internet                            │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+          ┌───────▼────────┐
+          │ Application    │
+          │ Load Balancer  │
+          │ (Public)       │
+          └───────┬────────┘
+                  │
+    ┌─────────────┴─────────────┐
+    │         VPC                │
+    │  ┌────────────────────┐   │
+    │  │  Public Subnets    │   │
+    │  │  (2 AZs)           │   │
+    │  └────────────────────┘   │
+    │           │                │
+    │  ┌────────▼───────────┐   │
+    │  │  Private Subnets   │   │
+    │  │  (2 AZs)           │   │
+    │  │                    │   │
+    │  │  ┌──────────────┐  │   │
+    │  │  │ ECS Fargate  │  │   │
+    │  │  │ Tasks        │  │   │
+    │  │  └──────┬───────┘  │   │
+    │  │         │          │   │
+    │  │  ┌──────▼───────┐  │   │
+    │  │  │ RDS          │  │   │
+    │  │  │ PostgreSQL   │  │   │
+    │  │  └──────────────┘  │   │
+    │  └────────────────────┘   │
+    └───────────────────────────┘
+```
+
+## 作成されるリソース
+
+### ネットワーク
+- **VPC**: 10.0.0.0/16
+- **Public Subnets**: 2つのAvailability Zoneに配置（ALB用）
+- **Private Subnets**: 2つのAvailability Zoneに配置（ECS Tasks、RDS用）
+- **Internet Gateway**: パブリックサブネットのインターネット接続
+- **NAT Gateway**: プライベートサブネットからの外部通信（ECRイメージ取得用）
+
+### コンピューティング
+- **ECR Repository**: Dockerイメージの保存
+- **ECS Cluster**: Fargateクラスター
+- **ECS Task Definition**: アプリケーションコンテナの定義
+- **ECS Service**: 高可用性のためのタスク管理（2つのタスク）
+- **Application Load Balancer**: トラフィックの分散
+
+### データベース
+- **RDS PostgreSQL**: フルマネージドデータベース（db.t4g.micro）
+- **Secrets Manager**: データベースパスワードの安全な保管
+
+### セキュリティ
+- **Security Groups**: ALB、ECS Tasks、RDSの通信制御
+- **IAM Roles**: ECSタスク実行用の権限管理
+
+### モニタリング
+- **CloudWatch Logs**: アプリケーションログの集約
+- **Container Insights**: ECSクラスターのメトリクス収集
 
 ## 前提条件
 
-1. **Terraformのインストール**
+1. **Terraformのインストール（バージョン1.0以上）**
    ```bash
-   # Homebrewでインストール（macOS）
-   brew install terraform
+   # tfenvでバージョン管理（推奨）
+   brew install tfenv
+   tfenv install latest
+   tfenv use latest
 
    # バージョン確認
    terraform version
@@ -15,26 +82,43 @@
 
 2. **AWS CLIの設定**
    ```bash
-   # AWS認証情報の設定
-   aws configure
+   # AWS認証情報の設定（studyプロファイル）
+   aws configure --profile study
+
+   # 認証確認
+   aws sts get-caller-identity --profile study
    ```
 
-3. **必要な権限**
-   - `ecr:CreateRepository`
-   - `ecr:DescribeRepositories`
-   - `ecr:DeleteRepository`
-   - `ecr:PutLifecyclePolicy`
-   - `ecr:GetLifecyclePolicy`
+3. **Dockerイメージの準備**
+   ```bash
+   # ECRにイメージをプッシュ
+   ./scripts/deploy-to-ecr.sh
+   ```
+
+4. **必要な権限**
+   - ECR: CreateRepository, DescribeRepositories, GetAuthorizationToken
+   - VPC: CreateVpc, CreateSubnet, CreateInternetGateway, CreateNatGateway
+   - ECS: CreateCluster, CreateService, RegisterTaskDefinition
+   - RDS: CreateDBInstance, CreateDBSubnetGroup
+   - ELB: CreateLoadBalancer, CreateTargetGroup
+   - IAM: CreateRole, AttachRolePolicy
+   - Secrets Manager: CreateSecret, PutSecretValue
+   - CloudWatch Logs: CreateLogGroup
 
 ## ファイル構成
 
 ```
 terraform/
-├── main.tf                    # メインの設定（ECRリポジトリ定義）
-├── variables.tf               # 変数定義
-├── outputs.tf                 # 出力定義
-├── terraform.tfvars.example   # 変数の設定例
-└── README.md                  # このファイル
+├── main.tf                 # プロバイダー設定、ECRリポジトリ
+├── variables.tf            # 変数定義
+├── outputs.tf              # 出力定義
+├── vpc.tf                  # VPC、サブネット、ルーティング
+├── security_groups.tf      # セキュリティグループ
+├── rds.tf                  # RDS PostgreSQL、Secrets Manager
+├── alb.tf                  # Application Load Balancer
+├── ecs.tf                  # ECS、Fargate、IAMロール
+├── terraform.tfvars        # 変数の値（Git管理外）
+└── README.md               # このファイル
 ```
 
 ## 使用方法
@@ -45,167 +129,278 @@ terraform/
 # terraformディレクトリに移動
 cd terraform
 
-# 変数ファイルを作成（必要に応じてカスタマイズ）
-cp terraform.tfvars.example terraform.tfvars
-
-# Terraformの初期化
+# Terraformの初期化（プロバイダーのダウンロード）
 terraform init
 ```
 
 ### 2. 実行計画の確認
 
 ```bash
-# 変更内容を確認
+# 作成されるリソースを確認
 terraform plan
+
+# プロファイルを指定する場合
+AWS_PROFILE=study terraform plan
 ```
 
-### 3. リソースの作成
+### 3. インフラストラクチャの作成
 
 ```bash
-# ECRリポジトリを作成
+# リソースを作成（約10-15分かかります）
 terraform apply
 
-# 確認メッセージで "yes" を入力
+# 自動承認する場合
+terraform apply -auto-approve
 ```
 
-### 4. リソースの確認
+**注意**: RDSインスタンスの作成には5-10分程度かかります。
+
+### 4. デプロイ後の確認
 
 ```bash
-# 作成されたリソースの情報を表示
-terraform show
-
-# 出力値のみを表示
+# 出力値を確認
 terraform output
+
+# アプリケーションURLを取得
+terraform output -raw application_url
+
+# ALB DNS名を取得
+terraform output -raw alb_dns_name
 ```
 
-### 5. リソースの削除（必要な場合）
+### 5. アプリケーションへのアクセス
 
 ```bash
-# ECRリポジトリを削除
+# 出力されたURLにアクセス
+curl http://$(terraform output -raw alb_dns_name)/api/users
+
+# ブラウザでアクセス
+open http://$(terraform output -raw alb_dns_name)
+```
+
+### 6. リソースの削除
+
+```bash
+# すべてのリソースを削除
 terraform destroy
 
 # 確認メッセージで "yes" を入力
 ```
 
+**警告**: RDSデータベースのデータも削除されます。本番環境では `skip_final_snapshot = false` に設定してください。
+
 ## 設定のカスタマイズ
 
-`terraform.tfvars` ファイルを編集して、以下の設定をカスタマイズできます：
+`variables.tf` で定義されている変数をカスタマイズできます。
 
-### リージョンの変更
+### 主要な変数
+
+| 変数名 | デフォルト値 | 説明 |
+|--------|------------|------|
+| `aws_region` | `ap-northeast-1` | AWSリージョン |
+| `aws_profile` | `study` | AWS CLIプロファイル |
+| `vpc_cidr` | `10.0.0.0/16` | VPCのCIDRブロック |
+| `db_instance_class` | `db.t4g.micro` | RDSインスタンスタイプ |
+| `container_cpu` | `512` | コンテナCPU（1024 = 1 vCPU） |
+| `container_memory` | `1024` | コンテナメモリ（MB） |
+| `desired_count` | `2` | ECSタスク数 |
+
+### カスタマイズ例
+
+`terraform.tfvars` ファイルを作成して変数を上書きできます：
 
 ```hcl
+# リージョンの変更
 aws_region = "us-west-2"
-```
 
-### リポジトリ名の変更
+# RDSインスタンスのスケールアップ
+db_instance_class = "db.t4g.small"
 
-```hcl
-repository_name = "my-app"
-```
+# コンテナリソースの増加
+container_cpu    = 1024
+container_memory = 2048
 
-### イメージタグの変更不可設定
+# タスク数の変更
+desired_count = 3
 
-本番環境では、イメージタグを変更不可にすることを推奨します：
-
-```hcl
-image_tag_mutability = "IMMUTABLE"
-```
-
-### ライフサイクルポリシーの調整
-
-```hcl
-max_image_count = 50   # 保持する最大イメージ数を増やす
-untagged_days   = 3    # タグなしイメージの保持期間を短縮
+# NAT Gatewayを無効化（コスト削減、開発環境用）
+enable_nat_gateway = false
 ```
 
 ## 出力値
 
-Terraform applyの実行後、以下の情報が出力されます：
+`terraform apply` 実行後、以下の情報が出力されます：
 
-- **repository_url**: ECRリポジトリのURL（Dockerイメージのプッシュ先）
-- **repository_arn**: ECRリポジトリのARN
-- **repository_name**: ECRリポジトリ名
-- **registry_id**: ECRレジストリID（AWSアカウントID）
+### ECR
+- `repository_url`: ECRリポジトリURL
+- `repository_name`: リポジトリ名
 
-### 出力値の使用例
+### ネットワーク
+- `vpc_id`: VPC ID
+- `public_subnet_ids`: パブリックサブネットID一覧
+- `private_subnet_ids`: プライベートサブネットID一覧
+
+### データベース
+- `db_endpoint`: RDSエンドポイント
+- `db_address`: RDSアドレス
+- `db_name`: データベース名
+- `db_secret_arn`: パスワードのSecrets Manager ARN
+
+### ロードバランサー
+- `alb_dns_name`: ALB DNS名（アプリケーションアクセス用）
+- `alb_arn`: ALB ARN
+- `target_group_arn`: ターゲットグループARN
+
+### ECS
+- `ecs_cluster_name`: ECSクラスター名
+- `ecs_service_name`: ECSサービス名
+- `ecs_task_definition_arn`: タスク定義ARN
+
+### アプリケーション
+- `application_url`: アプリケーションURL（http://ALB-DNS）
+
+## コスト概算（東京リージョン）
+
+| サービス | スペック | 月額概算 |
+|---------|---------|---------|
+| RDS PostgreSQL | db.t4g.micro | $15-20 |
+| ECS Fargate | 0.5 vCPU, 1GB x 2 | $25-30 |
+| ALB | - | $20-25 |
+| NAT Gateway | - | $35-40 |
+| データ転送 | 軽微 | $5-10 |
+| **合計** | | **$100-125/月** |
+
+**コスト削減のヒント:**
+- 開発環境では `enable_nat_gateway = false` を設定
+- `desired_count = 1` でタスク数を削減
+- 使用しない時間帯は `terraform destroy` でリソースを削除
+
+## データベース初期設定
+
+RDSインスタンスは空の状態で作成されます。初期データを投入する場合：
+
+### 方法1: ECSタスクから初期化スクリプトを実行
 
 ```bash
-# リポジトリURLを取得
-export ECR_URL=$(terraform output -raw repository_url)
-echo $ECR_URL
+# ECSタスクに接続
+aws ecs execute-command \
+  --cluster potato-app-cluster \
+  --task <task-id> \
+  --container potato-app \
+  --interactive \
+  --command "/bin/bash"
 
-# Dockerイメージにタグ付け
-docker tag potato-app:latest $ECR_URL:latest
+# データベースに接続して初期化
+psql -h <db-endpoint> -U postgres -d demo < init.sql
 ```
 
-## ライフサイクルポリシー
+### 方法2: RDS Data API（推奨）
 
-自動的に以下のライフサイクルポリシーが設定されます：
-
-1. **タグ付きイメージ**: `v*` で始まるタグのイメージを最大30個保持（設定可能）
-2. **タグなしイメージ**: 7日以上古いタグなしイメージを自動削除（設定可能）
-
-これによりストレージコストを最適化できます。
+Secrets Managerに保存されたパスワードを使用してスクリプトから初期化できます。
 
 ## トラブルシューティング
 
-### 認証エラー
+### ECSタスクが起動しない
 
-```
-Error: error configuring Terraform AWS Provider: no valid credential sources
-```
+**症状**: タスクが `PENDING` 状態のまま、または即座に終了する
 
-**解決方法:**
+**確認項目**:
 ```bash
-# AWS認証情報を設定
-aws configure
+# ECSタスクのログを確認
+aws logs tail /ecs/potato-app --follow --profile study
 
-# または環境変数を設定
-export AWS_ACCESS_KEY_ID="your-access-key"
-export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="ap-northeast-1"
+# タスクの詳細を確認
+aws ecs describe-tasks \
+  --cluster potato-app-cluster \
+  --tasks <task-arn> \
+  --profile study
 ```
 
-### リポジトリが既に存在するエラー
+**よくある原因**:
+1. ECRイメージが存在しない → `./scripts/deploy-to-ecr.sh` を実行
+2. NAT Gatewayがない → `enable_nat_gateway = true` に設定
+3. データベース接続エラー → RDSのセキュリティグループ確認
 
-```
-Error: creating ECR Repository: RepositoryAlreadyExistsException
-```
+### ALB経由でアクセスできない
 
-**解決方法:**
+**確認項目**:
 ```bash
-# 既存のリポジトリをTerraformにインポート
-terraform import aws_ecr_repository.potato_app potato-app
+# ターゲットグループのヘルスチェック状態を確認
+aws elbv2 describe-target-health \
+  --target-group-arn $(terraform output -raw target_group_arn) \
+  --profile study
 ```
 
-### 権限エラー
+**よくある原因**:
+1. ヘルスチェックパス `/actuator/health` にアクセスできない
+2. セキュリティグループの設定ミス
+3. タスクが起動していない
 
+### データベース接続エラー
+
+**確認項目**:
+```bash
+# Secrets Managerからパスワードを取得
+aws secretsmanager get-secret-value \
+  --secret-id potato-app-db-password \
+  --profile study
+
+# RDSエンドポイントを確認
+terraform output db_endpoint
 ```
-Error: AccessDeniedException: User is not authorized to perform: ecr:CreateRepository
+
+### コスト超過
+
+**対策**:
+```bash
+# 開発時はNAT Gatewayを削除
+terraform apply -var="enable_nat_gateway=false"
+
+# タスク数を削減
+terraform apply -var="desired_count=1"
+
+# 完全に停止
+terraform destroy
 ```
 
-**解決方法:**
-IAMユーザーまたはロールに必要な権限を付与してください。
+## セキュリティベストプラクティス
 
-## ベストプラクティス
+1. **データベースパスワード**
+   - Secrets Managerで自動生成
+   - 手動設定する場合は `db_password` 変数を使用（機密情報として扱う）
 
-1. **バージョン管理**
-   - `terraform.tfvars` は `.gitignore` に追加済み（機密情報保護）
-   - Terraform stateファイルはリモートバックエンド（S3等）に保存することを推奨
+2. **ネットワークセキュリティ**
+   - ECSタスクとRDSはプライベートサブネットに配置
+   - セキュリティグループで最小権限の原則を適用
 
-2. **環境分離**
-   - 開発・ステージング・本番で異なるリポジトリを使用
-   - Terraform Workspacesを活用
+3. **暗号化**
+   - RDS: ストレージ暗号化有効
+   - ECR: AES256暗号化
 
-3. **セキュリティ**
-   - 本番環境では `image_tag_mutability = "IMMUTABLE"` を使用
-   - イメージスキャンを有効化（`scan_on_push = true`）
+4. **モニタリング**
+   - CloudWatch Logsでアプリケーションログを収集
+   - Container Insightsでメトリクスを監視
 
-4. **コスト最適化**
-   - ライフサイクルポリシーで不要なイメージを自動削除
-   - 定期的に使用状況を確認
+## CI/CD統合
+
+GitHub ActionsなどのCI/CDパイプラインとの統合例：
+
+```yaml
+- name: Deploy to ECR
+  run: ./scripts/deploy-to-ecr.sh
+
+- name: Update ECS Service
+  run: |
+    aws ecs update-service \
+      --cluster potato-app-cluster \
+      --service potato-app-service \
+      --force-new-deployment \
+      --profile study
+```
 
 ## 参考リンク
 
-- [Terraform AWS Provider - ECR Repository](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecr_repository)
-- [AWS ECR Documentation](https://docs.aws.amazon.com/ecr/)
+- [Terraform AWS Provider - ECS](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_service)
+- [AWS Fargate Documentation](https://docs.aws.amazon.com/fargate/)
+- [AWS ECS Best Practices](https://docs.aws.amazon.com/AmazonECS/latest/bestpracticesguide/)
+- [RDS PostgreSQL Documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html)
