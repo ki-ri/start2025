@@ -1,0 +1,47 @@
+# ビルド成果物
+build/
+target/
+out/
+bin/
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# ドキュメント
+*.md
+README.md
+docs/
+
+# テストとログ
+*.log
+logs/
+test-results/
+
+# 環境変数ファイル
+.env
+.env.local
+.env.*.local
+
+# Docker関連
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# その他
+.editorconfig
+Makefile

@@ -28,6 +28,7 @@ sourceSets.main {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-mustache")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
@@ -61,7 +62,7 @@ jooq {
     configuration {
         jdbc {
             driver = "org.postgresql.Driver"
-            url = "jdbc:postgresql://localhost:5439/demo"
+            url = "jdbc:postgresql://localhost:55432/demo"
             user = "postgres"
             password = "password"
         }
